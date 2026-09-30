@@ -1,0 +1,23 @@
+{
+  "title": "Needle 3 Conversation",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Needle 3",
+        "description": "The official Needle 3 model and native engine download on first setup. Only entities exposed to Assist can be controlled.",
+        "data": {"min_confidence": "Minimum confidence"}
+      }
+    },
+    "error": {"invalid_confidence": "Choose a confidence between 0 and 1."},
+    "abort": {"already_configured": "Needle is already configured."}
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Needle settings",
+        "data": {"min_confidence": "Minimum confidence"}
+      }
+    },
+    "error": {"invalid_confidence": "Choose a confidence between 0 and 1."}
+  }
+}
