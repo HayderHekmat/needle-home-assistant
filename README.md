@@ -1,5 +1,7 @@
 # Needle 3 for Home Assistant
 
+<img src="custom_components/needle/brand/icon.png" alt="Needle 3 house-and-needle icon" width="96" height="96">
+
 A Home Assistant integration that uses [Cactus Compute Needle 3](https://github.com/cactus-compute/needle) to interpret home-control commands locally. Needle chooses the tools to call, and Home Assistant runs them through its built-in Assist API. It can only control entities you have exposed to Assist.
 
 Install it through HACS as an Integration. This project does not include a Home Assistant add-on.
@@ -88,24 +90,17 @@ These steps are for the project maintainer. Users installing an already publishe
 
 1. Run `python scripts/configure_repository.py YOUR_OWNER/YOUR_REPOSITORY` to set the manifest URLs and code owner.
 2. Push this project to that public GitHub repository.
-3. Publish a `v0.1.0` release, or let HACS use the default branch.
+3. Publish a release matching the version in the integration manifest, or let HACS use the default branch.
 4. Use the repository URL in the HACS installation steps above.
 
 Publishing the repository makes it available for installation as a custom repository. It does not add it to the default HACS catalog.
 
-## Development and testing
+## Integration icon
 
-```sh
-uv sync --python 3.14
-uv run ruff check .
-uv run ruff format --check .
-uv run pytest
-```
+The integration includes a house-and-needle icon in `custom_components/needle/brand/`, with standard and high-resolution files for light and dark themes. Home Assistant 2026.3 and newer can load these [bundled brand images](https://developers.home-assistant.io/blog/2026/02/24/brands-proxy-api/).
 
-The automated tests use a fake model to check the native-runtime wrapper and controlled tools to check the conversation agent against Home Assistant APIs. They do not download weights or measure model accuracy. Real engine and model checks are separate.
+If the HACS repository list shows "icon not available", it may be the [HACS issue with bundled icons](https://github.com/hacs/integration/issues/5223). That list can still use the public icon CDN rather than the integration's local files. Adding another icon to this repository does not fix that HACS behavior.
 
-To check real inference without controlling any devices, run `uv run python scripts/smoke_model.py`. The initial check on Windows x86-64 with the pinned SDK selected `turn_on_light(room="kitchen")` with confidence 0.9967. That confirms the native runtime worked for this command. It does not establish accuracy across the full Assist tool catalog or verify deployment on a Linux Home Assistant host.
-
-Test this initial release on your Linux Home Assistant host before relying on it for daily use.
+After downloading an integration update in HACS, restart Home Assistant and reload the page to load the installed branding.
 
 References: [Needle Python implementation](https://github.com/cactus-compute/needle/blob/main/needle/__init__.py), [Home Assistant LLM API](https://developers.home-assistant.io/docs/core/llm/), [HACS integration requirements](https://www.hacs.xyz/docs/publish/integration/).
