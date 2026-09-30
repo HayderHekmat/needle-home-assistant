@@ -14,7 +14,13 @@ from homeassistant.helpers import intent, llm
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from probatio import to_openapi
 
-from .const import CONF_MIN_CONFIDENCE, DEFAULT_MIN_CONFIDENCE, DOMAIN, MAX_CALLS
+from .const import (
+    CONF_LOCAL_FALLBACK,
+    CONF_MIN_CONFIDENCE,
+    DEFAULT_MIN_CONFIDENCE,
+    DOMAIN,
+    MAX_CALLS,
+)
 from .engine import RejectedCommand, complete, validate_response
 
 _LOGGER = logging.getLogger(__name__)
@@ -86,6 +92,8 @@ class NeedleConversationEntity(
         chat_log: conversation.ChatLog,
     ) -> conversation.ConversationResult:
         response = intent.IntentResponse(language=user_input.language)
+        output = None
+        actions_started = False
         try:
             await chat_log.async_provide_llm_data(
                 user_input.as_llm_context(DOMAIN),
@@ -127,6 +135,7 @@ class NeedleConversationEntity(
             # One call per chat-log message preserves model order even when a
             # later command targets the same entity as an earlier command.
             for call in calls:
+                actions_started = True
                 async for tool_result in chat_log.async_add_assistant_content(
                     conversation.AssistantContent(
                         agent_id=self.entity_id, tool_calls=[call]
@@ -150,6 +159,25 @@ class NeedleConversationEntity(
             response.async_set_error(
                 intent.IntentResponseErrorCode.NO_INTENT_MATCH, str(err)
             )
+            fallback_enabled = self.entry.options.get(
+                CONF_LOCAL_FALLBACK, self.entry.data.get(CONF_LOCAL_FALLBACK, False)
+            )
+            validation = output.get("validation") if isinstance(output, dict) else None
+            negated = isinstance(validation, dict) and validation.get("negation")
+            if fallback_enabled and not actions_started and not negated:
+                # Reparse the original text, never recover or execute withheld calls.
+                try:
+                    local_response = await conversation.async_handle_intents(
+                        self.hass, user_input, chat_log
+                    )
+                except Exception:
+                    _LOGGER.exception("Home Assistant sentence fallback failed")
+                else:
+                    if local_response is not None:
+                        response = local_response
+                        _LOGGER.debug(
+                            "Request handled by Home Assistant sentence fallback"
+                        )
         except (HomeAssistantError, vol.Invalid) as err:
             _LOGGER.warning("Needle Assist tool failure: %s", err)
             response.async_set_error(

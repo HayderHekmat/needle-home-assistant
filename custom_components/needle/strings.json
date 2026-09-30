@@ -5,7 +5,13 @@
       "user": {
         "title": "Needle 3",
         "description": "The official Needle 3 model and native engine download on first setup. Only entities exposed to Assist can be controlled.",
-        "data": {"min_confidence": "Minimum confidence"}
+        "data": {
+          "min_confidence": "Minimum confidence",
+          "local_fallback": "Use Home Assistant sentence fallback"
+        },
+        "data_description": {
+          "local_fallback": "If Needle rejects a request before acting, try Home Assistant's built-in sentences. Withheld Needle calls are never executed."
+        }
       }
     },
     "error": {"invalid_confidence": "Choose a confidence between 0 and 1."},
@@ -15,7 +21,13 @@
     "step": {
       "init": {
         "title": "Needle settings",
-        "data": {"min_confidence": "Minimum confidence"}
+        "data": {
+          "min_confidence": "Minimum confidence",
+          "local_fallback": "Use Home Assistant sentence fallback"
+        },
+        "data_description": {
+          "local_fallback": "If Needle rejects a request before acting, try Home Assistant's built-in sentences. Withheld Needle calls are never executed."
+        }
       }
     },
     "error": {"invalid_confidence": "Choose a confidence between 0 and 1."}

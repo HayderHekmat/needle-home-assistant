@@ -1,5 +1,6 @@
 """Exercise real HA chat logs and LLM APIs with controlled model predictions."""
 
+import asyncio
 import logging
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
@@ -7,11 +8,12 @@ from unittest.mock import AsyncMock, patch
 import pytest
 import voluptuous as vol
 from homeassistant.components import conversation
+from homeassistant.components.intent.timers import TimerManager
 from homeassistant.core import Context, HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers import llm
+from homeassistant.helpers import intent, llm
 
-from custom_components.needle.const import CONF_MIN_CONFIDENCE
+from custom_components.needle.const import CONF_LOCAL_FALLBACK, CONF_MIN_CONFIDENCE
 from custom_components.needle.conversation import (
     NeedleConversationEntity,
     _prepare_calls,
@@ -214,6 +216,151 @@ async def test_tool_errors_are_logged_for_background_requests(setup_agent, caplo
         await entity._async_handle_message(user_input, log)
     assert executed == ["Kitchen"]
     assert "Needle Assist tool returned an error: Light unavailable" in caplog.text
+
+
+async def test_opt_in_fallback_reparses_original_request(setup_agent):
+    entity, log, user_input, executed, _ = setup_agent
+    entity.entry.options[CONF_LOCAL_FALLBACK] = True
+    local_response = intent.IntentResponse(language="en")
+    local_response.async_set_speech("Turned on the switch")
+    output = prediction(
+        function_calls=[],
+        suppressed_calls=[
+            {"name": "media_player__HassMediaNext", "arguments": {"name": "Kitchen"}}
+        ],
+        confidence=0.0468,
+    )
+    with (
+        patch("custom_components.needle.conversation.complete", return_value=output),
+        patch(
+            "homeassistant.components.conversation.async_handle_intents",
+            AsyncMock(return_value=local_response),
+        ) as fallback,
+    ):
+        result = await entity._async_handle_message(user_input, log)
+    fallback.assert_awaited_once_with(entity.hass, user_input, log)
+    assert executed == []
+    assert result.response is local_response
+    assert log.content[-1].content == "Turned on the switch"
+
+
+async def test_fallback_disabled_for_existing_entries(setup_agent):
+    entity, log, user_input, _, _ = setup_agent
+    with (
+        patch(
+            "custom_components.needle.conversation.complete",
+            return_value=prediction(confidence=0.01),
+        ),
+        patch("homeassistant.components.conversation.async_handle_intents") as fallback,
+    ):
+        result = await entity._async_handle_message(user_input, log)
+    fallback.assert_not_called()
+    assert result.response.error_code is not None
+
+
+async def test_negation_warning_does_not_fall_back(setup_agent):
+    entity, log, user_input, executed, _ = setup_agent
+    entity.entry.options[CONF_LOCAL_FALLBACK] = True
+    with (
+        patch(
+            "custom_components.needle.conversation.complete",
+            return_value=prediction(validation={"negation": True}),
+        ),
+        patch("homeassistant.components.conversation.async_handle_intents") as fallback,
+    ):
+        result = await entity._async_handle_message(user_input, log)
+    fallback.assert_not_called()
+    assert executed == []
+    assert result.response.error_code is not None
+
+
+@pytest.mark.parametrize("outcome", [None, HomeAssistantError("Fallback unavailable")])
+async def test_failed_fallback_preserves_rejection(setup_agent, outcome):
+    entity, log, user_input, executed, _ = setup_agent
+    entity.entry.options[CONF_LOCAL_FALLBACK] = True
+    fallback = AsyncMock(return_value=outcome)
+    if isinstance(outcome, Exception):
+        fallback.side_effect = outcome
+    with (
+        patch(
+            "custom_components.needle.conversation.complete",
+            return_value=prediction(confidence=0.01),
+        ),
+        patch("homeassistant.components.conversation.async_handle_intents", fallback),
+    ):
+        result = await entity._async_handle_message(user_input, log)
+    fallback.assert_awaited_once()
+    assert executed == []
+    assert result.response.error_code is not None
+
+
+async def test_fallback_does_not_retry_after_tool_error(setup_agent):
+    entity, log, user_input, executed, api = setup_agent
+    entity.entry.options[CONF_LOCAL_FALLBACK] = True
+    api.tools = [Tool(executed, fail=True)]
+    with (
+        patch(
+            "custom_components.needle.conversation.complete", return_value=prediction()
+        ),
+        patch("homeassistant.components.conversation.async_handle_intents") as fallback,
+    ):
+        result = await entity._async_handle_message(user_input, log)
+    assert executed == ["Kitchen"]
+    fallback.assert_not_called()
+    assert result.response.error_code is not None
+
+
+async def test_timer_callback_uses_opt_in_fallback_after_model_rejection(setup_agent):
+    entity, _, _, executed, _ = setup_agent
+    entity.entry.options[CONF_LOCAL_FALLBACK] = True
+    completed = asyncio.Event()
+    inputs = []
+
+    async def local_handler(hass, user_input, chat_log):
+        inputs.append(user_input)
+        response = intent.IntentResponse(language=user_input.language)
+        response.async_set_speech("Turned on the switch")
+        completed.set()
+        return response
+
+    with (
+        patch(
+            "custom_components.needle.conversation.complete",
+            return_value=prediction(
+                function_calls=[],
+                suppressed_calls=[
+                    {"name": "media_player__HassMediaNext", "arguments": {}}
+                ],
+                confidence=0.0468,
+            ),
+        ),
+        patch(
+            "homeassistant.components.conversation.agent_manager.async_get_agent",
+            return_value=entity,
+        ),
+        patch.object(entity, "async_write_ha_state"),
+        patch("homeassistant.helpers.device_registry.async_get"),
+        patch(
+            "homeassistant.components.conversation.async_handle_intents",
+            side_effect=local_handler,
+        ),
+    ):
+        timers = TimerManager(entity.hass)
+        timers.start_timer(
+            device_id=None,
+            hours=None,
+            minutes=None,
+            seconds=1,
+            language="en",
+            conversation_command="turn on Kitchen",
+            conversation_agent_id=entity.entity_id,
+        )
+        await asyncio.wait_for(completed.wait(), timeout=5)
+        await entity.hass.async_block_till_done()
+    assert executed == []
+    assert inputs[0].text == "turn on Kitchen"
+    assert inputs[0].conversation_id is None
+    assert entity.state is not None
 
 
 async def test_unknown_tool_preflight(setup_agent):

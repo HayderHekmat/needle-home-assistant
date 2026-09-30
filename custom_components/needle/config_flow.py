@@ -7,10 +7,15 @@ from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.helpers import selector
 
-from .const import CONF_MIN_CONFIDENCE, DEFAULT_MIN_CONFIDENCE, DOMAIN
+from .const import (
+    CONF_LOCAL_FALLBACK,
+    CONF_MIN_CONFIDENCE,
+    DEFAULT_MIN_CONFIDENCE,
+    DOMAIN,
+)
 
 
-def _schema(default: float) -> vol.Schema:
+def _schema(default: float, local_fallback: bool = False) -> vol.Schema:
     return vol.Schema(
         {
             vol.Required(CONF_MIN_CONFIDENCE, default=default): vol.All(
@@ -20,7 +25,10 @@ def _schema(default: float) -> vol.Schema:
                     )
                 ),
                 vol.Range(min=0, max=1),
-            )
+            ),
+            vol.Required(CONF_LOCAL_FALLBACK, default=local_fallback): (
+                selector.BooleanSelector()
+            ),
         }
     )
 
@@ -54,21 +62,26 @@ class NeedleConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 
 class NeedleOptionsFlow(config_entries.OptionsFlow):
-    """Change the confidence threshold without reloading the model."""
+    """Change confidence and fallback settings without reloading the model."""
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None):
         default = self.config_entry.options.get(
             CONF_MIN_CONFIDENCE,
             self.config_entry.data.get(CONF_MIN_CONFIDENCE, DEFAULT_MIN_CONFIDENCE),
         )
+        local_fallback = self.config_entry.options.get(
+            CONF_LOCAL_FALLBACK, self.config_entry.data.get(CONF_LOCAL_FALLBACK, False)
+        )
         if user_input is not None:
             try:
-                data = _schema(default)(user_input)
+                data = _schema(default, local_fallback)(user_input)
             except vol.Invalid:
                 return self.async_show_form(
                     step_id="init",
-                    data_schema=_schema(default),
+                    data_schema=_schema(default, local_fallback),
                     errors={"base": "invalid_confidence"},
                 )
             return self.async_create_entry(title="", data=data)
-        return self.async_show_form(step_id="init", data_schema=_schema(default))
+        return self.async_show_form(
+            step_id="init", data_schema=_schema(default, local_fallback)
+        )

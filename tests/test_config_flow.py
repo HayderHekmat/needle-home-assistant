@@ -21,7 +21,7 @@ async def test_user_creates_entry(tmp_path):
     ):
         result = await flow.async_step_user({"min_confidence": 0.8})
     assert result["type"] == "create_entry"
-    assert result["data"] == {"min_confidence": 0.8}
+    assert result["data"] == {"min_confidence": 0.8, "local_fallback": False}
     await hass.async_stop(force=True)
 
 
@@ -39,7 +39,11 @@ async def test_invalid_confidence_shows_form(tmp_path):
 
 
 def test_schema_default():
-    assert _schema(0.8)({}) == {"min_confidence": 0.8}
+    assert _schema(0.8)({}) == {"min_confidence": 0.8, "local_fallback": False}
+
+
+def test_schema_preserves_enabled_fallback():
+    assert _schema(0.8, True)({}) == {"min_confidence": 0.8, "local_fallback": True}
 
 
 async def test_loading_failure_is_retryable():
