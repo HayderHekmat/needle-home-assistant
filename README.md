@@ -78,6 +78,28 @@ If Needle asks you to rephrase, try a shorter command with an explicit device or
 
 Commands are not a transaction. If one action succeeds and a later action fails, the earlier action remains applied.
 
+## Troubleshoot rejected or delayed commands
+
+If a command works with the built-in Home Assistant agent but not Needle, test Needle directly in Developer tools > Actions. Use YAML mode:
+
+```yaml
+action: conversation.process
+data:
+  agent_id: conversation.needle_3
+  language: en
+  text: "Turn off Main Light"
+```
+
+Use your actual conversation entity ID and an exposed device name. This command controls the device; it is not a dry run. Testing directly bypasses the assistant's "Prefer handling commands locally" setting.
+
+"Some commands could not be verified" means the SDK withheld one or more calls. The integration will not execute them, even if you lower its confidence threshold. This response alone does not identify why the SDK withheld the call.
+
+With local handling enabled, Home Assistant can acknowledge a delayed command before Needle processes the action when the timer expires. That later response is not shown in the original pipeline trace. Since v0.1.3, rejections and tool failures are also logged so these background failures are visible.
+
+To capture details, open Settings > Devices & services, find Needle 3 Conversation, and choose Enable debug logging from its menu. Repeat the direct test, then disable debug logging and download the log. Look for `Needle prediction` and `Needle rejected command`.
+
+Debug logs contain commands, tool arguments, and exposed home context, including device names. Review them for private information before sharing. The Hugging Face unauthenticated-request warning concerns download rate limits; it does not explain a rejected command.
+
 ## Downloads and local processing
 
 During the first setup, the SDK downloads the official model and native runtime from the upstream distribution. It stores the files in its cache under the Home Assistant process's home directory. Later inference uses those cached files locally.

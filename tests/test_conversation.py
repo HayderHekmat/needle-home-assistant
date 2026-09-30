@@ -1,5 +1,6 @@
 """Exercise real HA chat logs and LLM APIs with controlled model predictions."""
 
+import logging
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -166,6 +167,53 @@ async def test_assist_context_is_forwarded_to_model(setup_agent):
     assert text == user_input.text
     assert tools[0]["parameters"]["required"] == ["name"]
     assert "Available light: Kitchen" in system
+
+
+async def test_suppressed_calls_are_logged_without_executing(setup_agent, caplog):
+    entity, log, user_input, executed, _ = setup_agent
+    entity.entry.options[CONF_MIN_CONFIDENCE] = 0
+    output = prediction(
+        suppressed_calls=[{"name": "HassTurnOn", "arguments": {"name": "Secret"}}]
+    )
+    with patch("custom_components.needle.conversation.complete", return_value=output):
+        result = await entity._async_handle_message(user_input, log)
+    assert executed == []
+    assert result.response.error_code is not None
+    assert "Needle rejected command: Some commands could not be verified" in caplog.text
+    assert "Secret" not in caplog.text
+    assert user_input.text not in caplog.text
+
+
+async def test_debug_logs_include_prediction_and_available_tools(setup_agent, caplog):
+    entity, log, user_input, executed, _ = setup_agent
+    output = prediction(
+        function_calls=[],
+        suppressed_calls=[{"name": "HassTurnOn", "arguments": {"name": "Kitchen"}}],
+        reasoning="Missing required argument",
+    )
+    with (
+        caplog.at_level(logging.DEBUG, logger="custom_components.needle.conversation"),
+        patch("custom_components.needle.conversation.complete", return_value=output),
+    ):
+        await entity._async_handle_message(user_input, log)
+    assert executed == []
+    assert "Needle request:" in caplog.text
+    assert "Available light: Kitchen" in caplog.text
+    assert "HassTurnOn" in caplog.text
+    assert "Needle prediction:" in caplog.text
+    assert "suppressed_calls" in caplog.text
+    assert "Missing required argument" in caplog.text
+
+
+async def test_tool_errors_are_logged_for_background_requests(setup_agent, caplog):
+    entity, log, user_input, executed, api = setup_agent
+    api.tools = [Tool(executed, fail=True)]
+    with patch(
+        "custom_components.needle.conversation.complete", return_value=prediction()
+    ):
+        await entity._async_handle_message(user_input, log)
+    assert executed == ["Kitchen"]
+    assert "Needle Assist tool returned an error: Light unavailable" in caplog.text
 
 
 async def test_unknown_tool_preflight(setup_agent):

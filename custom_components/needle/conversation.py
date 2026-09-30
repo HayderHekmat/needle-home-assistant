@@ -107,9 +107,16 @@ class NeedleConversationEntity(
                 for tool in api.tools
             ]
             system = chat_log.content[0].content or ""
+            _LOGGER.debug(
+                "Needle request: text=%r tools=%s system=%s",
+                user_input.text,
+                tools,
+                system,
+            )
             output = await self.hass.async_add_executor_job(
                 complete, user_input.text, tools, system
             )
+            _LOGGER.debug("Needle prediction: %s", output)
             minimum = self.entry.options.get(
                 CONF_MIN_CONFIDENCE,
                 self.entry.data.get(CONF_MIN_CONFIDENCE, DEFAULT_MIN_CONFIDENCE),
@@ -128,6 +135,7 @@ class NeedleConversationEntity(
                     speech, failed = _result_speech(tool_result.tool_result)
                     speeches.append(speech)
                 if failed:
+                    _LOGGER.warning("Needle Assist tool returned an error: %s", speech)
                     break
             text = " ".join(part for part in speeches if part) or "Command completed."
             if failed:
@@ -137,6 +145,8 @@ class NeedleConversationEntity(
         except conversation.ConverseError as err:
             return err.as_conversation_result()
         except RejectedCommand as err:
+            # Timer callbacks discard conversation responses, so log refusals too.
+            _LOGGER.warning("Needle rejected command: %s", err)
             response.async_set_error(
                 intent.IntentResponseErrorCode.NO_INTENT_MATCH, str(err)
             )
