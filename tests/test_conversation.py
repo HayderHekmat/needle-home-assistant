@@ -231,7 +231,9 @@ async def test_opt_in_fallback_reparses_original_request(setup_agent):
         confidence=0.0468,
     )
     with (
-        patch("custom_components.needle.conversation.complete", return_value=output),
+        patch(
+            "custom_components.needle.conversation.complete", return_value=output
+        ) as model,
         patch(
             "homeassistant.components.conversation.async_handle_intents",
             AsyncMock(return_value=local_response),
@@ -239,6 +241,7 @@ async def test_opt_in_fallback_reparses_original_request(setup_agent):
     ):
         result = await entity._async_handle_message(user_input, log)
     fallback.assert_awaited_once_with(entity.hass, user_input, log)
+    model.assert_not_called()
     assert executed == []
     assert result.response is local_response
     assert log.content[-1].content == "Turned on the switch"
@@ -258,24 +261,28 @@ async def test_fallback_disabled_for_existing_entries(setup_agent):
     assert result.response.error_code is not None
 
 
-async def test_negation_warning_does_not_fall_back(setup_agent):
+async def test_unmatched_negated_request_remains_rejected(setup_agent):
     entity, log, user_input, executed, _ = setup_agent
     entity.entry.options[CONF_LOCAL_FALLBACK] = True
+    user_input.text = "do not turn on Kitchen"
     with (
         patch(
             "custom_components.needle.conversation.complete",
             return_value=prediction(validation={"negation": True}),
         ),
-        patch("homeassistant.components.conversation.async_handle_intents") as fallback,
+        patch(
+            "homeassistant.components.conversation.async_handle_intents",
+            AsyncMock(return_value=None),
+        ) as fallback,
     ):
         result = await entity._async_handle_message(user_input, log)
-    fallback.assert_not_called()
+    fallback.assert_awaited_once_with(entity.hass, user_input, log)
     assert executed == []
     assert result.response.error_code is not None
 
 
 @pytest.mark.parametrize("outcome", [None, HomeAssistantError("Fallback unavailable")])
-async def test_failed_fallback_preserves_rejection(setup_agent, outcome):
+async def test_unmatched_or_failed_local_handling_stops_safely(setup_agent, outcome):
     entity, log, user_input, executed, _ = setup_agent
     entity.entry.options[CONF_LOCAL_FALLBACK] = True
     fallback = AsyncMock(return_value=outcome)
@@ -285,13 +292,17 @@ async def test_failed_fallback_preserves_rejection(setup_agent, outcome):
         patch(
             "custom_components.needle.conversation.complete",
             return_value=prediction(confidence=0.01),
-        ),
+        ) as model,
         patch("homeassistant.components.conversation.async_handle_intents", fallback),
     ):
         result = await entity._async_handle_message(user_input, log)
     fallback.assert_awaited_once()
     assert executed == []
     assert result.response.error_code is not None
+    if isinstance(outcome, Exception):
+        model.assert_not_called()
+    else:
+        model.assert_called_once()
 
 
 async def test_fallback_does_not_retry_after_tool_error(setup_agent):
@@ -302,15 +313,20 @@ async def test_fallback_does_not_retry_after_tool_error(setup_agent):
         patch(
             "custom_components.needle.conversation.complete", return_value=prediction()
         ),
-        patch("homeassistant.components.conversation.async_handle_intents") as fallback,
+        patch(
+            "homeassistant.components.conversation.async_handle_intents",
+            AsyncMock(return_value=None),
+        ) as fallback,
     ):
         result = await entity._async_handle_message(user_input, log)
     assert executed == ["Kitchen"]
-    fallback.assert_not_called()
+    fallback.assert_awaited_once()
     assert result.response.error_code is not None
 
 
-async def test_timer_callback_uses_opt_in_fallback_after_model_rejection(setup_agent):
+async def test_timer_callback_uses_opt_in_local_handling_without_model_delay(
+    setup_agent,
+):
     entity, _, _, executed, _ = setup_agent
     entity.entry.options[CONF_LOCAL_FALLBACK] = True
     completed = asyncio.Event()
@@ -333,7 +349,7 @@ async def test_timer_callback_uses_opt_in_fallback_after_model_rejection(setup_a
                 ],
                 confidence=0.0468,
             ),
-        ),
+        ) as model,
         patch(
             "homeassistant.components.conversation.agent_manager.async_get_agent",
             return_value=entity,
@@ -358,9 +374,48 @@ async def test_timer_callback_uses_opt_in_fallback_after_model_rejection(setup_a
         await asyncio.wait_for(completed.wait(), timeout=5)
         await entity.hass.async_block_till_done()
     assert executed == []
+    model.assert_not_called()
     assert inputs[0].text == "turn on Kitchen"
     assert inputs[0].conversation_id is None
     assert entity.state is not None
+
+
+async def test_unmatched_request_still_uses_needle(setup_agent):
+    entity, log, user_input, executed, _ = setup_agent
+    entity.entry.options[CONF_LOCAL_FALLBACK] = True
+    with (
+        patch(
+            "homeassistant.components.conversation.async_handle_intents",
+            AsyncMock(return_value=None),
+        ),
+        patch(
+            "custom_components.needle.conversation.complete", return_value=prediction()
+        ) as model,
+    ):
+        result = await entity._async_handle_message(user_input, log)
+    model.assert_called_once()
+    assert executed == ["Kitchen"]
+    assert result.response.error_code is None
+
+
+async def test_local_tool_error_is_not_retried_by_needle(setup_agent):
+    entity, log, user_input, executed, _ = setup_agent
+    entity.entry.options[CONF_LOCAL_FALLBACK] = True
+    local_response = intent.IntentResponse(language="en")
+    local_response.async_set_error(
+        intent.IntentResponseErrorCode.UNKNOWN, "Unavailable"
+    )
+    with (
+        patch(
+            "homeassistant.components.conversation.async_handle_intents",
+            AsyncMock(return_value=local_response),
+        ),
+        patch("custom_components.needle.conversation.complete") as model,
+    ):
+        result = await entity._async_handle_message(user_input, log)
+    model.assert_not_called()
+    assert executed == []
+    assert result.response is local_response
 
 
 async def test_unknown_tool_preflight(setup_agent):

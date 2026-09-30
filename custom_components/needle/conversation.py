@@ -92,8 +92,37 @@ class NeedleConversationEntity(
         chat_log: conversation.ChatLog,
     ) -> conversation.ConversationResult:
         response = intent.IntentResponse(language=user_input.language)
-        output = None
-        actions_started = False
+        if self.entry.options.get(
+            CONF_LOCAL_FALLBACK, self.entry.data.get(CONF_LOCAL_FALLBACK, False)
+        ):
+            # Timer callbacks bypass the pipeline's local-first setting. Reuse
+            # strict sentence matching here instead of waiting for model refusal.
+            try:
+                local_response = await conversation.async_handle_intents(
+                    self.hass, user_input, chat_log
+                )
+            except Exception:
+                _LOGGER.exception("Home Assistant sentence fallback failed")
+                # The handler may already have acted; do not retry with Needle.
+                local_response = response
+                local_response.async_set_error(
+                    intent.IntentResponseErrorCode.UNKNOWN,
+                    "Home Assistant could not complete the command.",
+                )
+            if local_response is not None:
+                _LOGGER.debug("Request handled by Home Assistant sentence fallback")
+                chat_log.async_add_assistant_content_without_tools(
+                    conversation.AssistantContent(
+                        agent_id=self.entity_id,
+                        content=local_response.speech.get("plain", {}).get(
+                            "speech", ""
+                        ),
+                    )
+                )
+                return conversation.ConversationResult(
+                    response=local_response,
+                    conversation_id=chat_log.conversation_id,
+                )
         try:
             await chat_log.async_provide_llm_data(
                 user_input.as_llm_context(DOMAIN),
@@ -135,7 +164,6 @@ class NeedleConversationEntity(
             # One call per chat-log message preserves model order even when a
             # later command targets the same entity as an earlier command.
             for call in calls:
-                actions_started = True
                 async for tool_result in chat_log.async_add_assistant_content(
                     conversation.AssistantContent(
                         agent_id=self.entity_id, tool_calls=[call]
@@ -159,25 +187,6 @@ class NeedleConversationEntity(
             response.async_set_error(
                 intent.IntentResponseErrorCode.NO_INTENT_MATCH, str(err)
             )
-            fallback_enabled = self.entry.options.get(
-                CONF_LOCAL_FALLBACK, self.entry.data.get(CONF_LOCAL_FALLBACK, False)
-            )
-            validation = output.get("validation") if isinstance(output, dict) else None
-            negated = isinstance(validation, dict) and validation.get("negation")
-            if fallback_enabled and not actions_started and not negated:
-                # Reparse the original text, never recover or execute withheld calls.
-                try:
-                    local_response = await conversation.async_handle_intents(
-                        self.hass, user_input, chat_log
-                    )
-                except Exception:
-                    _LOGGER.exception("Home Assistant sentence fallback failed")
-                else:
-                    if local_response is not None:
-                        response = local_response
-                        _LOGGER.debug(
-                            "Request handled by Home Assistant sentence fallback"
-                        )
         except (HomeAssistantError, vol.Invalid) as err:
             _LOGGER.warning("Needle Assist tool failure: %s", err)
             response.async_set_error(

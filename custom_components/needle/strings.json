@@ -7,10 +7,10 @@
         "description": "The official Needle 3 model and native engine download on first setup. Only entities exposed to Assist can be controlled.",
         "data": {
           "min_confidence": "Minimum confidence",
-          "local_fallback": "Use Home Assistant sentence fallback"
+          "local_fallback": "Prefer Home Assistant sentences"
         },
         "data_description": {
-          "local_fallback": "If Needle rejects a request before acting, try Home Assistant's built-in sentences. Withheld Needle calls are never executed."
+          "local_fallback": "Handle standard commands with Home Assistant's built-in sentences first. Needle handles unmatched requests. This also applies when a delayed command's timer expires."
         }
       }
     },
@@ -23,10 +23,10 @@
         "title": "Needle settings",
         "data": {
           "min_confidence": "Minimum confidence",
-          "local_fallback": "Use Home Assistant sentence fallback"
+          "local_fallback": "Prefer Home Assistant sentences"
         },
         "data_description": {
-          "local_fallback": "If Needle rejects a request before acting, try Home Assistant's built-in sentences. Withheld Needle calls are never executed."
+          "local_fallback": "Handle standard commands with Home Assistant's built-in sentences first. Needle handles unmatched requests. This also applies when a delayed command's timer expires."
         }
       }
     },
