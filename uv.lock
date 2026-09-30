@@ -508,14 +508,14 @@ wheels = [
 
 [[package]]
 name = "cactus-needle"
-version = "3.0.1"
+version = "3.0.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "huggingface-hub" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/3c/fc/28dc61b37ef853ee3912f867bc8001baf9847719ed9c076a3ee549e0387a/cactus_needle-3.0.1.tar.gz", hash = "sha256:c734ee57691b7f5e940d1d3da508ea71951c207ccad6739cb0d037c52650280e", size = 101276, upload-time = "2026-09-17T23:11:30.04Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c5/25/bb0fec2e63d32b5acbe3823e37b8d58a64ce858664d65578b6723e581160/cactus_needle-3.0.6.tar.gz", hash = "sha256:283c14846989fb98be3142c919335c4b9c27bd73ead2eb067a6417974da6bba6", size = 119894, upload-time = "2026-09-28T16:02:16.282Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/25/58/c8caa89f16d772356946bd5ca7d21f8b4148c845c04007b6d270523e8d34/cactus_needle-3.0.1-py3-none-any.whl", hash = "sha256:d990c623ecc69f7c7692d31678e88a799caced87780d7fed31c55b6961d75c82", size = 89904, upload-time = "2026-09-17T23:11:28.669Z" },
+    { url = "https://files.pythonhosted.org/packages/dd/33/05d83bbd14f7b8511fa47b99a0b82c5856a0a4d98017cf71680ea5a47433/cactus_needle-3.0.6-py3-none-any.whl", hash = "sha256:ef09403149973f0a62f3e22edffdb1dca1e7349d4144fdac801c3de01da88fc8", size = 99848, upload-time = "2026-09-28T16:02:14.676Z" },
 ]
 
 [[package]]
@@ -1519,7 +1519,7 @@ wheels = [
 
 [[package]]
 name = "needle-home-assistant"
-version = "0.1.1"
+version = "0.1.2"
 source = { virtual = "." }
 dependencies = [
     { name = "cactus-needle" },
@@ -1538,7 +1538,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cactus-needle", specifier = "==3.0.1" },
+    { name = "cactus-needle", specifier = "==3.0.6" },
     { name = "homeassistant", specifier = "==2026.9.4" },
 ]
 

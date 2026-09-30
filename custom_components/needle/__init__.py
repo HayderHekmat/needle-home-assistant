@@ -19,7 +19,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await hass.async_add_executor_job(warm_up)
     except Exception as err:
         _LOGGER.warning("Unable to load Needle: %s", err)
-        raise ConfigEntryNotReady("Unable to load Needle engine or model") from err
+        raise ConfigEntryNotReady(
+            f"Unable to load Needle engine or model: {err}"
+        ) from err
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 

@@ -46,7 +46,7 @@ async def test_loading_failure_is_retryable():
     hass = SimpleNamespace(
         async_add_executor_job=AsyncMock(side_effect=OSError("missing library"))
     )
-    with pytest.raises(ConfigEntryNotReady):
+    with pytest.raises(ConfigEntryNotReady, match="missing library"):
         await async_setup_entry(hass, SimpleNamespace())
 
 

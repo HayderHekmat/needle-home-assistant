@@ -9,7 +9,7 @@ Install it through HACS as an Integration. This project does not include a Home 
 ## What you need
 
 - Home Assistant 2026.9.0 or newer.
-- A host supported by `cactus-needle` 3.0.1. The SDK supports Linux x86-64 and ARM64, including musl builds used by Home Assistant containers, and Windows/macOS for development.
+- A host supported by `cactus-needle` 3.0.6. The SDK supports Linux x86-64 and ARM64, including musl builds used by Home Assistant containers, and Windows/macOS for development.
 - Internet access for the first model and engine download. Later requests run locally using the cached files. You do not need a Cactus API key.
 - HACS to install from GitHub, or access to your Home Assistant configuration directory for manual installation.
 
@@ -102,5 +102,11 @@ The integration includes a house-and-needle icon in `custom_components/needle/br
 If the HACS repository list shows "icon not available", it may be the [HACS issue with bundled icons](https://github.com/hacs/integration/issues/5223). That list can still use the public icon CDN rather than the integration's local files. Adding another icon to this repository does not fix that HACS behavior.
 
 After downloading an integration update in HACS, restart Home Assistant and reload the page to load the installed branding.
+
+## Setup fails with a shared-library error
+
+If the log mentions `ld-linux-x86-64.so.2` or `strtoll_l` while loading `libneedle.so`, update this integration to v0.1.2 or newer in HACS and restart Home Assistant. Earlier versions pinned a Needle SDK that could choose a glibc library inside Home Assistant's musl-based container. The updated SDK detects musl and retries with the alternate library when loading fails.
+
+You do not need to delete the integration or its settings. On the next setup attempt, the SDK uses its updated engine cache and downloads the required files if they are missing. Setup errors now include the underlying failure message; check Settings > System > Logs if setup still fails.
 
 References: [Needle Python implementation](https://github.com/cactus-compute/needle/blob/main/needle/__init__.py), [Home Assistant LLM API](https://developers.home-assistant.io/docs/core/llm/), [HACS integration requirements](https://www.hacs.xyz/docs/publish/integration/).
