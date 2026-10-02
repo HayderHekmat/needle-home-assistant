@@ -1,4 +1,7 @@
 .venv/
+.venv-training/
+training-output/
+checkpoints/
 __pycache__/
 .pytest_cache/
 .ruff_cache/

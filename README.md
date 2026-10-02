@@ -10,6 +10,9 @@ This integration is experimental. Large tool catalogs can cause incorrect predic
 
 ## What is Needle 3?
 
+For an offline experiment with custom weights, see [local training](docs/local-training.md).
+Locally tuned models are not enabled for device control in this integration.
+
 Needle 3 is a compact model designed for tool calling, structured extraction, and text embeddings. Rather than writing a chat reply, it selects functions and fills their arguments from a request. Cactus describes model variants with weights of 8-29 MB; that is the model file size, not the RAM this Home Assistant integration needs. See the [Needle project](https://github.com/cactus-compute/needle) for its architecture and deployment options.
 
 The Home Assistant integration uses the official model for tool calling. Its current workflow is:

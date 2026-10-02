@@ -1,0 +1,6 @@
+cactus-needle[train]==3.0.6
+jsonschema==4.26.0
+jax==0.11.2
+jaxlib==0.11.2
+flax==0.12.10
+optax==0.2.8

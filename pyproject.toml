@@ -7,6 +7,7 @@ dependencies = ["homeassistant==2026.9.4", "cactus-needle==3.0.6"]
 
 [dependency-groups]
 dev = [
+    "jsonschema>=4.23,<5",
     "pytest>=8",
     "pytest-asyncio>=1",
     "ruff>=0.12",
