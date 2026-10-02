@@ -2,6 +2,8 @@
 
 Posted as [cactus-compute/needle#166](https://github.com/cactus-compute/needle/issues/166)
 on October 2, 2026; the reproducer was re-run that day with identical counts.
+A [follow-up comment](https://github.com/cactus-compute/needle/issues/166#issuecomment-5962916988)
+records the same four counts and identical wrong calls on engine 3.1.0.
 
 ## Summary
 
