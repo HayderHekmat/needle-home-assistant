@@ -57,9 +57,13 @@ does not explain the official-model failure on its own.
 
 As checked October 1, 2026, the
 [upstream fetch configuration](https://github.com/cactus-compute/needle/blob/main/needle/agent/fetch.py)
-pins engine 3.0.3; published SDK 3.0.6 pins 3.0.2. Listing the official
-`Cactus-Compute/needle3` model repository found no 3.0.3 engine wheels.
-No environment was changed to this unpublished pin. Whether 3.0.3 helps is untested.
+named engine 3.0.3 while published SDK 3.0.6 pinned 3.0.2, and the official
+`Cactus-Compute/needle3` repository listed no 3.0.3 wheels. Cactus then published
+`cactus-needle` 3.1.0 with engine 3.1.0 on October 2, 2026. The reproducer ran
+unchanged in a separate environment on SDK 3.1.0 / engine 3.1.0 and produced the
+same four counts: five and six tools 3/3, full 0/3, reversed 2/3. The wrong calls
+and their confidences were identical to engine 3.0.2, byte for byte. A published
+engine update therefore does not correct full-catalog handling.
 
 ## Reproduce
 
