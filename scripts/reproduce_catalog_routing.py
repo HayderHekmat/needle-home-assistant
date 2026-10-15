@@ -73,6 +73,17 @@ def synthetic_catalog():
     return schemas
 
 
+def strip_prefixes(tools):
+    """Remove the domain__ prefix from every tool name, per upstream #166."""
+    stripped = []
+    for tool in tools:
+        renamed = dict(tool)
+        name = tool["name"]
+        renamed["name"] = name.split("__", 1)[-1] if "__" in name else name
+        stripped.append(renamed)
+    return stripped
+
+
 def catalog_variant(name):
     tools = synthetic_catalog()
     if name == "five":
@@ -83,6 +94,10 @@ def catalog_variant(name):
         return tools
     if name == "reversed":
         return list(reversed(tools))
+    if name == "noprefix":
+        return strip_prefixes(tools)
+    if name == "noprefix-reversed":
+        return list(reversed(strip_prefixes(tools)))
     raise ValueError("Unknown catalog variant")
 
 
@@ -93,6 +108,7 @@ def run(variant, out):
     from needle.agent.fetch import engine_version
 
     tools = catalog_variant(variant)
+    stripped = variant.startswith("noprefix")
     encoded = json.dumps(tools, sort_keys=True).encode("utf-8")
     report = {
         "synthetic_only": True,
@@ -113,6 +129,8 @@ def run(variant, out):
         for query, name, arguments in CASES:
             agent.reset()
             prediction = agent.complete(query)
+            if stripped:
+                name = name.split("__", 1)[-1] if "__" in name else name
             expected = [{"name": name, "arguments": arguments}]
             exact = (
                 prediction.get("function_calls") == expected
@@ -136,7 +154,16 @@ def run(variant, out):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--variant", choices=("five", "six", "full", "reversed"), default="full"
+        "--variant",
+        choices=(
+            "five",
+            "six",
+            "full",
+            "reversed",
+            "noprefix",
+            "noprefix-reversed",
+        ),
+        default="full",
     )
     parser.add_argument("--out", type=Path)
     args = parser.parse_args()

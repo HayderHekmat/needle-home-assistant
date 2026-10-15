@@ -49,6 +49,17 @@ is not the cause either. The exact cause remains unresolved: retrieval and
 internal name mapping cannot yet be separated. Order sensitivity alone does not
 prove an indexing bug.
 
+Tool-name shape, however, changes selection. With the `domain__` prefix
+stripped from every tool name, the same 25-tool catalog returns 3/3 exact calls
+in both the original and reversed order, on engines 3.0.2 and 3.1.0 alike, with
+identical confidences (0.37/0.23/0.40 and 0.57/0.66/0.58). Correct short-name
+calls still fall below the integration's default 0.8 confidence threshold, so
+this fixes selection, not authorization to act: execution remains gated by the
+unchanged confidence and grounding checks. The integration therefore sends
+collision-free short names to the model and restores Home Assistant names
+before validation and execution. The underlying engine behavior is unchanged,
+and the upstream cause tracked in cactus-compute/needle#166 remains open.
+
 The [SDK documentation](https://cactuscompute.com/blog/needle-python-docs)
 describes five-tool retrieval and runtime snake-case aliases. The installed
 trainer's `render_example()` instead serializes supplied names unchanged.
@@ -102,7 +113,14 @@ full-catalog run also produced 0/3. No tool callbacks or device actions ran.
 .venv-training/Scripts/python.exe scripts/reproduce_catalog_routing.py --variant six
 .venv-training/Scripts/python.exe scripts/reproduce_catalog_routing.py --variant full
 .venv-training/Scripts/python.exe scripts/reproduce_catalog_routing.py --variant reversed
+.venv-training/Scripts/python.exe scripts/reproduce_catalog_routing.py --variant noprefix
+.venv-training/Scripts/python.exe scripts/reproduce_catalog_routing.py --variant noprefix-reversed
 ```
+
+The `noprefix` variants strip the `domain__` prefix from every tool name and
+expect the short names back. On SDK 3.0.6 / engine 3.0.2 both returned 3/3
+exact calls, against 0/3 and 2/3 with prefixes; on SDK 3.1.0 / engine 3.1.0 both
+also returned 3/3 with identical confidences.
 
 Synthetic reports are under `training-output/public-reproducer/`. The
 [upstream issue](upstream-routing-issue.md) includes the complete standalone

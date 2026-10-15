@@ -39,6 +39,16 @@ class Tool(llm.Tool):
         }
 
 
+class PrefixedTool(Tool):
+    name = "intent__HassTurnOn"
+    parameters = vol.Schema({vol.Required("name"): str})
+
+
+class CollidingTool(Tool):
+    name = "media_player__HassTurnOn"
+    parameters = vol.Schema({vol.Required("name"): str})
+
+
 @pytest.fixture
 async def setup_agent(tmp_path):
     hass = HomeAssistant(str(tmp_path))
@@ -422,6 +432,36 @@ async def test_unknown_tool_preflight(setup_agent):
     _, _, _, _, api = setup_agent
     with pytest.raises(ValueError):
         _prepare_calls([{"name": "RunAnyService", "arguments": {}}], api)
+
+
+async def test_prefixed_tool_names_are_stripped_for_the_model_and_restored(
+    setup_agent,
+):
+    """Needle 3 misroutes domain__ names; alias them per upstream #166."""
+    entity, log, user_input, executed, api = setup_agent
+    api.tools = [PrefixedTool(executed)]
+    with patch(
+        "custom_components.needle.conversation.complete", return_value=prediction()
+    ) as complete:
+        result = await entity._async_handle_message(user_input, log)
+    _, tools, _ = complete.call_args.args
+    assert [tool["name"] for tool in tools] == ["HassTurnOn"]
+    assert executed == ["Kitchen"]
+    assert result.response.error_code is None
+
+
+async def test_stripping_is_skipped_when_short_names_collide(setup_agent):
+    entity, log, user_input, executed, api = setup_agent
+    api.tools = [PrefixedTool(executed), CollidingTool(executed)]
+    with patch(
+        "custom_components.needle.conversation.complete", return_value=prediction()
+    ) as complete:
+        await entity._async_handle_message(user_input, log)
+    _, tools, _ = complete.call_args.args
+    assert [tool["name"] for tool in tools] == [
+        "intent__HassTurnOn",
+        "media_player__HassTurnOn",
+    ]
 
 
 def test_intent_error_speech_is_not_treated_as_success():

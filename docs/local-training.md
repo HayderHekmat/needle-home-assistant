@@ -55,7 +55,8 @@ exported. Review the files before sharing or publishing anything.
 
 The starter set covers on/off, brightness, next/previous media tracks,
 two-command requests, off-topic requests, and negated commands. It copies five
-tool schemas without renaming or simplifying their arguments. It uses synthetic
+tool schemas, stripping the `domain__` prefix to the short names the model
+sees at runtime, without simplifying their arguments. It uses synthetic
 entity names, not a record of actual device actions. Held-out names and phrasings
 are separate from training. Broader tools, aliases, languages, risky actions and
 real home contexts need additional reviewed examples.

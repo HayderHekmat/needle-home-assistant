@@ -2,6 +2,7 @@
 
 import json
 import logging
+from collections import Counter
 from typing import Literal
 
 import voluptuous as vol
@@ -32,6 +33,39 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     async_add_entities([NeedleConversationEntity(entry)])
+
+
+def _short_name(name: str) -> str:
+    return name.split("__", 1)[1] if "__" in name else name
+
+
+def _alias_tools(tools: list[dict]) -> tuple[list[dict], dict[str, str]]:
+    """Drop domain__ prefixes for the model and keep the reverse mapping.
+
+    Needle 3 misroutes prefixed names with larger catalogs (upstream
+    cactus-compute/needle#166). A short name that would collide with another
+    tool is sent unchanged, so execution never becomes ambiguous.
+    """
+    counts = Counter(_short_name(tool["name"]) for tool in tools)
+    originals = {tool["name"] for tool in tools}
+    aliases = {}
+    aliased = []
+    for tool in tools:
+        name = tool["name"]
+        short = _short_name(name)
+        if counts[short] == 1 and short not in originals:
+            aliases[short] = name
+            aliased.append({**tool, "name": short})
+        else:
+            aliased.append(tool)
+    return aliased, aliases
+
+
+def _restore_names(calls: list[dict], aliases: dict[str, str]) -> list[dict]:
+    """Translate the model's short tool names back to Home Assistant names."""
+    if not aliases:
+        return calls
+    return [{**call, "name": aliases.get(call["name"], call["name"])} for call in calls]
 
 
 def _prepare_calls(calls: list[dict], api: llm.APIInstance) -> list[llm.ToolInput]:
@@ -143,22 +177,26 @@ class NeedleConversationEntity(
                 }
                 for tool in api.tools
             ]
+            model_tools, aliases = _alias_tools(tools)
             system = chat_log.content[0].content or ""
             _LOGGER.debug(
                 "Needle request: text=%r tools=%s system=%s",
                 user_input.text,
-                tools,
+                model_tools,
                 system,
             )
             output = await self.hass.async_add_executor_job(
-                complete, user_input.text, tools, system
+                complete, user_input.text, model_tools, system
             )
             _LOGGER.debug("Needle prediction: %s", output)
             minimum = self.entry.options.get(
                 CONF_MIN_CONFIDENCE,
                 self.entry.data.get(CONF_MIN_CONFIDENCE, DEFAULT_MIN_CONFIDENCE),
             )
-            calls = _prepare_calls(validate_response(output, minimum, MAX_CALLS), api)
+            calls = _prepare_calls(
+                _restore_names(validate_response(output, minimum, MAX_CALLS), aliases),
+                api,
+            )
             speeches = []
             failed = False
             # One call per chat-log message preserves model order even when a

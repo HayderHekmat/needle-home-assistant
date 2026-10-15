@@ -42,6 +42,28 @@ def test_missing_catalog_is_rejected(tmp_path):
         read_tools(path)
 
 
+def test_log_catalog_is_stripped_to_the_runtime_name_shape(tmp_path):
+    path = tmp_path / "ha.log"
+    prefixed = [
+        {"name": f"domain__{name}", "parameters": {"type": "object"}} for name in FOCUS
+    ]
+    path.write_text(
+        f"Needle request: text='x' tools={prefixed!r} system=x\n", encoding="utf-8"
+    )
+    assert [tool["name"] for tool in read_tools(path)] == list(FOCUS)
+
+
+def test_stripping_rejects_name_collisions():
+    from scripts.local_training import strip_prefixes
+
+    tools = [
+        {"name": "a__same", "parameters": {}},
+        {"name": "b__same", "parameters": {}},
+    ]
+    with pytest.raises(ValueError, match="collide"):
+        strip_prefixes(tools)
+
+
 def test_prepare_does_not_export_home_context(tmp_path):
     path = tmp_path / "ha.log"
     path.write_text(

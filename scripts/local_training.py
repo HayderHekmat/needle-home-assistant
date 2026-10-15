@@ -13,11 +13,11 @@ from pathlib import Path
 
 SDK_VERSION = "3.0.6"
 FOCUS = (
-    "intent__HassTurnOn",
-    "intent__HassTurnOff",
-    "light__HassLightSet",
-    "media_player__HassMediaNext",
-    "media_player__HassMediaPrevious",
+    "HassTurnOn",
+    "HassTurnOff",
+    "HassLightSet",
+    "HassMediaNext",
+    "HassMediaPrevious",
 )
 TRAIN_NAMES = ("Main Light", "Kitchen Light", "Bedroom Lamp", "Hall Lamp")
 TEST_NAMES = ("Office Lamp", "Guest Room Light")
@@ -36,6 +36,23 @@ REFUSALS = (
 )
 
 
+def strip_prefixes(tools: list[dict]) -> list[dict]:
+    """Send Needle the runtime tool shape: no domain__ prefix (issue #166).
+
+    The integration aliases names the same way, so training examples must use
+    the short names the model actually sees at inference time.
+    """
+    stripped = []
+    for tool in tools:
+        name = tool["name"]
+        short = name.split("__", 1)[-1] if "__" in name else name
+        stripped.append({**tool, "name": short})
+    names = [tool["name"] for tool in stripped]
+    if len(names) != len(set(names)):
+        raise ValueError("Stripped tool names collide; keep the prefixed names")
+    return stripped
+
+
 def read_tools(log_path: Path) -> list[dict]:
     for line in log_path.read_text(encoding="utf-8").splitlines():
         if "Needle request:" in line and " tools=" in line:
@@ -45,6 +62,7 @@ def read_tools(log_path: Path) -> list[dict]:
                 isinstance(t, dict) for t in tools
             ):
                 raise ValueError("The log does not contain a valid tool list")
+            tools = strip_prefixes(tools)
             names = [t.get("name") for t in tools]
             if len(names) != len(set(names)) or not set(FOCUS).issubset(names):
                 raise ValueError("The log needs all five focus tools with unique names")
@@ -182,7 +200,7 @@ def build_rows(args, *, train_tools, distractor_pool, write_benchmark):
         prompt, target = render_example(example)
         return len(tokenizer.encode(prompt)) + len(tokenizer.encode(target)) + 2
 
-    catalog = json.loads(args.tools.read_text(encoding="utf-8"))
+    catalog = strip_prefixes(json.loads(args.tools.read_text(encoding="utf-8")))
     blocked = [r["query"] for r in read_rows(args.protect)]
     regressions = args.protect.parent / "regression-full-catalog.jsonl"
     if regressions.exists():

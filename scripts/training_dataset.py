@@ -5,16 +5,18 @@ import random
 import re
 from collections import Counter, defaultdict
 
-ON = "intent__HassTurnOn"
-OFF = "intent__HassTurnOff"
-LIGHT = "light__HassLightSet"
-CLIMATE = "climate__HassClimateSetTemperature"
-NEXT = "media_player__HassMediaNext"
-PREVIOUS = "media_player__HassMediaPrevious"
-PAUSE = "media_player__HassMediaPause"
-RESUME = "media_player__HassMediaUnpause"
-POSITION = "intent__HassSetPosition"
-CONTEXT = "homeassistant__GetLiveContext"
+# Tool names are the runtime shape Needle 3 sees: the integration strips the
+# domain__ prefix before every request (upstream cactus-compute/needle#166).
+ON = "HassTurnOn"
+OFF = "HassTurnOff"
+LIGHT = "HassLightSet"
+CLIMATE = "HassClimateSetTemperature"
+NEXT = "HassMediaNext"
+PREVIOUS = "HassMediaPrevious"
+PAUSE = "HassMediaPause"
+RESUME = "HassMediaUnpause"
+POSITION = "HassSetPosition"
+CONTEXT = "GetLiveContext"
 CORE = (ON, OFF, LIGHT, NEXT, PREVIOUS)
 
 TRAIN_TARGETS = (
